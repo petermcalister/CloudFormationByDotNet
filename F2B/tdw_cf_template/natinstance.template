@@ -1,0 +1,91 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Description": "Launches a NAT instance for external outbound connectivity",
+    "Parameters": {
+        "pDMZSubnetA": {
+            "Description": "Subnet for the DMZ",
+            "Type": "String",
+            "Default": "10.100.10.0/24"
+        },
+        "pSecurityGroupSSHFromVpc": {
+            "Description": "Enable SSH access via port 22",
+            "Type": "String",
+            "Default": "sg-082ede71"
+        },
+        "pSecurityGroupVpcNat": {
+            "Description": "Allow NAT from production",
+            "Type": "String",
+            "Default": "vpc-6df5e409"
+        },
+        "pEC2KeyPair": {
+            "Description": "Key Name for Instance",
+            "Type": "String",
+            "Default": "tdwprodcfkvp"
+        },
+        "pNatInstanceType": {
+            "Description": "NAT EC2 instance type",
+            "Type": "String",
+            "Default": "m3.medium"
+        },
+        "pNatAmi": {
+            "Description": "AMI to use for the NAT instnace",
+            "Type": "String",
+            "Default": "ami-01ccc867"
+        },
+        "pVpcName": {
+            "Description": "Name of VPC used for naming resources",
+            "Type": "String",
+            "Default": "nattestvpc"
+        },
+        "pVpcId": {
+            "Description": "ID of VPC used for routing",
+            "Type": "String",
+            "Default": "vpc-6df5e409"
+        },
+        "pRouteTablePrivate": {
+            "Description": "Routing table used for the NAT instance",
+            "Type": "String",
+            "Default": "rtb-83f647e4"
+        },
+        "pEipNatAllocationId": {
+            "Description": "Allocation ID for NAT EIP",
+            "Type": "String",
+            "Default": "0.0.0.0/0"
+        }
+    },
+    "Resources": { 
+        "rNATGateway1EIP" : {
+            "Type" : "AWS::EC2::EIP",
+            "Properties" : {
+                "Domain" : "vpc"
+            }
+        },
+        "rNATGateway" : {
+            "Type" : "AWS::EC2::NatGateway",
+            "DependsOn" : "rNATGateway1EIP",
+            "Properties" : {
+                "AllocationId" : {
+                    "Fn::GetAtt" : [
+                        "rNATGateway1EIP",
+                        "AllocationId"
+                    ]
+                },
+                "SubnetId" : {
+                    "Ref" : "pDMZSubnetA"
+                }
+            }
+        },
+        "rRouteProdPrivateNatInstance": {
+            "Type": "AWS::EC2::Route",
+            "Properties": {
+                "DestinationCidrBlock": "0.0.0.0/0",
+                "RouteTableId": {
+                    "Ref": "pRouteTablePrivate"
+                },
+                "NatGatewayId": {
+                    "Ref": "rNATGateway"
+                }
+            }
+        }
+    }
+}

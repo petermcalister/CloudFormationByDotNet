@@ -1,0 +1,35 @@
+{
+	"AWSTemplateFormatVersion" : "2010-09-09",
+	"Description" : "",
+	"Parameters" : {
+	},
+	"Resources" : {
+        "rSecurityAlarmTopic": {
+            "Type": "AWS::SNS::Topic",
+            "Properties": {
+				"TopicName" : "tdwsnscftlogger",
+                "Subscription": [
+                    {
+                        "Endpoint": "DataTeam@tandem.co.uk",
+                        "Protocol": "email"
+                    }
+                ]
+            }
+        }
+	},
+	"Outputs" : {
+        "rSecurityAlarmTopic": {
+            "Value": {
+                "Ref": "rSecurityAlarmTopic"
+            }
+		},
+        "rSecurityAlarmTopicName": {
+            "Value": { "Fn::GetAtt" : [ "rSecurityAlarmTopic", "TopicName" ] }
+		},
+		"rSecurityAlarmTopicExport" : {
+			"Description" : "rSecurityAlarmTopicExport",
+			"Value" :  { "Ref" : "rSecurityAlarmTopic" },
+			"Export" : { "Name" : {"Fn::Sub": "SecTopic" }}
+		}
+    }
+}

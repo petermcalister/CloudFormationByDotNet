@@ -1,0 +1,51 @@
+{
+	"AWSTemplateFormatVersion" : "2010-09-09",
+	"Description" : "",
+	"Parameters" : {
+	},
+	"Resources" : {
+        "rVPCProduction": {
+            "Type": "AWS::EC2::VPC",
+            "Properties": {
+                "CidrBlock": "10.100.0.0/16",
+                "InstanceTenancy": "default",
+                "EnableDnsSupport": true,
+                "EnableDnsHostnames": true,
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": "abbatdwcfVpcName"
+                    },
+                    {
+                        "Key": "Environment",
+                        "Value": "development"
+                    }
+                ]
+            }
+		},
+		"testchildtemplateproducer": {
+			"Type": "AWS::CloudFormation::Stack",
+			"Properties": {
+				"TemplateURL": "https://s3-eu-west-1.amazonaws.com/tdw-cft-dev/tdw-cft-devsubnetchildproducer.template",
+				"TimeoutInMinutes": "30"
+			}
+		},
+		"testchildtemplate": {
+			"Type": "AWS::CloudFormation::Stack",
+			"DependsOn": "testchildtemplateproducer",
+			"Properties": {
+				"TemplateURL": "https://s3-eu-west-1.amazonaws.com/tdw-cft-dev/tdw-cft-devsubnetchild.template",
+				"TimeoutInMinutes": "30",
+				"Parameters": { 					
+					"pProductionVPC": { "Ref": "rVPCProduction" } ,
+					"rSecurityAlarmTopic": { "Fn::Join"  : [ "", [ { "Fn::GetAtt" : [ "testchildtemplateproducer", "Outputs.rSecurityAlarmTopic" ] } ] ] }
+				}
+			}
+		}
+	},
+	"Outputs" : {
+		"rSecurityAlarmTopic": { "Value":  { "Fn::GetAtt" : [ "testchildtemplateproducer", "Outputs.rSecurityAlarmTopic" ] } } 
+	}
+}
+
+

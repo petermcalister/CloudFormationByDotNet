@@ -1,0 +1,25 @@
+{
+	"AWSTemplateFormatVersion" : "2010-09-09",
+	"Description" : "",
+	"Parameters" : {
+        "pProductionVPC"      : {
+            "Description" : "Production VPC",
+            "Type"        : "AWS::EC2::VPC::Id"
+        },
+        "rSecurityAlarmTopic"      : {
+            "Description" : "Production VPC",
+            "Type"        : "CommaDelimitedList"
+        }
+	},
+	"Resources" : {
+        "rS3ELBAccessLogs": {
+            "Type": "AWS::S3::Bucket",
+            "DeletionPolicy": "Retain",
+            "Properties": {
+                "AccessControl": "Private"
+            }
+        }
+	},
+	"Outputs" : {
+	}
+}

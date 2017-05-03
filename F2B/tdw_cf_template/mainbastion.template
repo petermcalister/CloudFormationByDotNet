@@ -1,0 +1,326 @@
+{
+	"AWSTemplateFormatVersion": "2010-09-09",
+	"Description": "TANDEM DW devops build",
+	"Parameters":{
+		"pDBPassword": { 
+			"Description" : "Mixed alphanumeric and must be between 8 and 28 characters and contain at least one capital letter",
+			"NoEcho": "true",
+			"Type": "String",
+			"MinLength": "8",
+			"MaxLength": "28",
+			"AllowedPattern": "[a-zA-Z0-9!^*\\-_+]*",
+			"ConstraintDescription": "Can only contain alphanumeric characters or the following special characters !^*-_+, between 8 and 28 characters",
+			"Default": "LiverpoolFC123"
+		},
+		"pNotifyEmail" : {
+			"Description": "Notification email address for security events (you will receive a confirmation email)",
+			"Type": "String",
+			"Default": "DataTeam@tandem.co.uk"
+		},
+		"pEC2KeyPairBastion":{
+			"Description": "The SSH key pair in your account to use for the bastion host login",
+			"Type": "AWS::EC2::KeyPair::KeyName",
+			"Default": "tdwbastioncfkvp"
+		},
+		"pEC2KeyPair": {
+			"Description": "The SSH key pair in your account to use for all other EC2 instance logins",
+			"Type": "AWS::EC2::KeyPair::KeyName",
+			"Default": "tdwprodcfkvp"
+		},
+		"pSupportsConfig": {
+			"Description": "Is AWS Config Rules already configured for this region? Use 'No' if you are uncertain.",
+			"AllowedValues": ["Yes", "No"],
+			"Default": "Yes",
+			"Type": "String"
+		},
+		"pAvailabilityZoneA": {
+			"Description": "Availability Zone 1",
+			"Type": "AWS::EC2::AvailabilityZone::Name",
+			"Default": "eu-west-1a"
+		},
+		"pAvailabilityZoneB": {
+			"Description": "Availability Zone 2",
+			"Type": "AWS::EC2::AvailabilityZone::Name",
+			"Default": "eu-west-1b"
+		},
+		"pVPCTenancy": {
+			"Description": "Instance tenancy behavior for this VPC",
+			"Type": "String",
+			"Default": "default",
+			"AllowedValues": ["default","dedicated"]
+		},
+		"QSS3BucketName": {
+			"AllowedPattern": "^[0-9a-zA-Z]+([0-9a-zA-Z-.]*[0-9a-zA-Z])*$",
+			"ConstraintDescription": "Bucket name can include numbers, lowercase letters, uppercase letters, periods (.), and hyphens (-). It cannot start or end with a hyphen (-).",
+			"Default": "tdw-cft-dev",
+			"Description": "S3 bucket name can include numbers, lowercase letters, uppercase letters, and hyphens (-). It cannot start or end with a hyphen (-).",
+			"Type": "String"
+		},
+		"QSS3KeyPrefix":{
+			"AllowedPattern": "^[0-9a-zA-Z-]+(/[0-9a-zA-Z-]+)*$",
+			"ConstraintDescription": "Key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/). It cannot start or end with forward slash (/) because they are automatically appended.",
+			"Default": "tdw-cft-dev",
+			"Description": "S3 key prefix for the Quick Start assets. Quick Start key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/). It cannot start or end with forward slash (/) because they are automatically appended.",
+			"Type": "String"
+		}
+	},
+	"Mappings": {
+		"AWSInfoRegionMap": {
+			"eu-central-1": {
+				"Partition": "aws",
+				"QuickStartS3URL": "https://s3-eu-west-1.amazonaws.com"
+			},
+			"eu-west-1": {
+				"Partition": "aws",
+				"QuickStartS3URL": "https://s3-eu-west-1.amazonaws.com"
+			},
+			"eu-west-2": {
+				"Partition": "aws",
+				"QuickStartS3URL": "https://s3-eu-west-1.amazonaws.com"
+			}
+		},
+		"CustomVariables": {
+			"vResourceEnvironmentTagKey": {
+				"Value": "Environment"
+			},
+			"vResourceEnvironmentTagValue": {
+				"Value": "development"
+			}
+		},
+		"RegionServiceSupport":{
+			"eu-central-1": {
+				"NatGateway": "true",
+				"ConfigRules": "true",
+				"Glacier": "true"
+			},
+			"eu-west-1": {
+				"ConfigRules": "true",
+				"NatGateway": "true",
+				"Glacier": "true"
+			},
+			"eu-west-2": {
+				"ConfigRules": "false",
+				"NatGateway": "true",
+				"Glacier": "true"
+			}
+		},
+		"AWSAMIRegionMap": {
+			"AMI": {
+				"AMZNLINUXHVM": "amzn-ami-hvm-2016.09.1.20170119-x86_64-gp2"
+				},
+			"eu-central-1": {
+				"AMZNLINUXHVM": "ami-b968bad6",
+				"InstanceType": "t2.micro",
+				"InstanceTypeDatabase": "db.m3.medium"
+				},
+			"eu-west-1": {
+				"AMZNLINUXHVM": "ami-01ccc867",
+				"InstanceType": "t2.micro",
+				"InstanceTypeDatabase": "db.m3.medium"
+				},
+			"eu-west-2": {
+				"AMZNLINUXHVM": "ami-b6daced2",
+				"InstanceType": "t2.micro",
+				"InstanceTypeDatabase": "db.m3.medium"
+				}
+			}
+		},
+	"Conditions": {
+		"LoadConfigRulesTemplate": {
+			"Fn::Equals": [{ "Ref" : "pSupportsConfig" }, "Yes" ]
+			},
+		"LaunchAsDedicatedInstance": {
+			"Fn::Equals": [{ "Ref" : "pVPCTenancy" }, "default" ]
+			}
+	},
+	"Resources": {
+		"IamTemplate": {
+			"Type": "AWS::CloudFormation::Stack",
+			"Properties": {
+				"TemplateURL": { 
+					"Fn::Join"  : [ 
+						"",
+						[
+							{ "Fn::FindInMap" : [ "AWSInfoRegionMap", { "Ref": "AWS::Region" }, "QuickStartS3URL" ] }, "/", { "Ref": "QSS3BucketName" }, "/", { "Ref": "QSS3KeyPrefix" }, "iam.template"
+						]
+					]
+				},
+				"TimeoutInMinutes": "20"
+			}
+		},
+		"LoggingTemplate": {
+			"Type": "AWS::CloudFormation::Stack",
+			"Properties": {
+				"TemplateURL": { 
+					"Fn::Join"  : [
+						"",
+						[
+							{ "Fn::FindInMap" : [ "AWSInfoRegionMap", { "Ref": "AWS::Region" }, "QuickStartS3URL" ] }, "/", { "Ref": "QSS3BucketName" }, "/", { "Ref": "QSS3KeyPrefix" }, "logging.template"
+						]
+					]
+				}, 
+				"TimeoutInMinutes": "20",
+				"Parameters": { "pNotifyEmail": { "Ref": "pNotifyEmail" }, 
+								"pSupportsGlacier": { 
+									"Fn::FindInMap" : [ "RegionServiceSupport", { "Ref": "AWS::Region" }, "Glacier" ] 
+									}
+								}
+				}
+		},
+		"ProductionVpcTemplate":{
+			"Type": "AWS::CloudFormation::Stack",
+			"Properties": {
+				"TemplateURL": { 
+					"Fn::Join"  : [ 
+						"",
+						[
+							{ "Fn::FindInMap" : [ "AWSInfoRegionMap", { "Ref": "AWS::Region" }, "QuickStartS3URL" ] }, "/", { "Ref": "QSS3BucketName" }, "/", { "Ref": "QSS3KeyPrefix" }, "vpcproduction.template"
+						]
+					]
+				}, 
+				"TimeoutInMinutes": "20",
+				"Parameters": { "pRegionAZ1Name": { "Ref": "pAvailabilityZoneA" }, 
+								"pRegionAZ2Name": { "Ref": "pAvailabilityZoneB" },
+								"pProductionVPCName": "Production VPC",
+								"pBastionSSHCIDR": "0.0.0.0/0",
+								"pDMZSubnetACIDR": "10.100.10.0/24",
+								"pDMZSubnetBCIDR": "10.100.20.0/24",
+								"pManagementCIDR": "10.10.0.0/16",
+								"pAppPrivateSubnetACIDR": "10.100.96.0/21",
+								"pAppPrivateSubnetBCIDR": "10.100.119.0/21",
+								"pDBPrivateSubnetACIDR": "10.100.194.0/21",
+								"pDBPrivateSubnetBCIDR": "10.100.212.0/21",
+								"pVPCTenancy": { "Ref": "pVPCTenancy" },
+								"pEnvironment": { "Fn::FindInMap" : [ "CustomVariables", "vResourceEnvironmentTagValue", "Value" ] },
+								"pEC2KeyPair": { "Ref": "pEC2KeyPair" },
+								"pSupportsNatGateway": { "Fn::FindInMap" : [ "RegionServiceSupport", { "Ref": "AWS::Region" }, "NatGateway" ] },
+								"pNatAmi": { "Fn::FindInMap" : [ "AWSAMIRegionMap", { "Ref": "AWS::Region" }, "AMZNLINUXHVM" ] },
+								"pNatInstanceType": { "Fn::FindInMap" : [ "AWSAMIRegionMap", { "Ref": "AWS::Region" }, "InstanceType" ] },
+								"QuickStartS3URL": { "Fn::FindInMap" : [ "AWSInfoRegionMap", { "Ref": "AWS::Region" }, "QuickStartS3URL" ] },
+								"QSS3BucketName": { "Ref": "QSS3BucketName" },
+								"QSS3KeyPrefix": { "Ref": "QSS3KeyPrefix" }
+				}
+			}
+		},
+		"ManagementVpcTemplate":{
+			"Type": "AWS::CloudFormation::Stack",
+			"DependsOn": "ProductionVpcTemplate",
+			"Properties": {
+				"TemplateURL": { 
+					"Fn::Join"  : [
+						"",
+						[
+							{ "Fn::FindInMap" : [ "AWSInfoRegionMap", { "Ref": "AWS::Region" }, "QuickStartS3URL" ] }, "/", { "Ref": "QSS3BucketName" }, "/", { "Ref": "QSS3KeyPrefix" }, "vpcmanagement.template"
+						]
+					]
+				}, 
+				"TimeoutInMinutes": "20",
+				"Parameters": { "pProductionVPC": { "Fn::GetAtt" : [ "ProductionVpcTemplate", "Outputs.rVPCProduction" ] }, 
+								"pRouteTableProdPrivate": { "Fn::GetAtt" : [ "ProductionVpcTemplate", "Outputs.rRouteTableProdPrivate" ] }, 
+								"pRouteTableProdPublic": { "Fn::GetAtt" : [ "ProductionVpcTemplate", "Outputs.rRouteTableProdPublic" ] }, 
+								"pProductionCIDR": "10.100.0.0/16",
+								"pBastionSSHCIDR": "0.0.0.0/0",
+								"pManagementCIDR": "10.10.0.0/16",
+								"pManagementDMZSubnetACIDR": "10.10.1.0/24",
+								"pManagementDMZSubnetBCIDR": "10.10.2.0/24",
+								"pManagementPrivateSubnetACIDR": "10.10.20.0/24",
+								"pManagementPrivateSubnetBCIDR": "10.10.30.0/24",
+								"pManagementVPCName": "Management VPC",
+								"pEC2KeyPairBastion": { "Ref": "pEC2KeyPairBastion" },
+								"pEC2KeyPair": { "Ref": "pEC2KeyPair" },
+								"pVPCTenancy": { "Ref": "pVPCTenancy" },
+								"pBastionAmi": { "Fn::FindInMap" : [ "AWSAMIRegionMap", { "Ref": "AWS::Region" }, "AMZNLINUXHVM" ] },
+								"pRegionAZ1Name": { "Ref": "pAvailabilityZoneA" },
+								"pRegionAZ2Name": { "Ref": "pAvailabilityZoneB" },
+								"pEnvironment": { "Fn::FindInMap" : [ "CustomVariables", "vResourceEnvironmentTagValue", "Value" ] },
+								"pBastionInstanceType": { "Fn::If": [ "LaunchAsDedicatedInstance", "m4.large", "t2.small" ] },
+								"pSupportsNatGateway": { "Fn::FindInMap" : [ "RegionServiceSupport", { "Ref": "AWS::Region" }, "NatGateway" ] },
+								"pNatAmi": { "Fn::FindInMap" : [ "AWSAMIRegionMap", { "Ref": "AWS::Region" }, "AMZNLINUXHVM" ] },
+								"pNatInstanceType": { "Fn::FindInMap" : [ "AWSAMIRegionMap", { "Ref": "AWS::Region" }, "InstanceType" ] },
+								"QuickStartS3URL": { "Fn::FindInMap" : [ "AWSInfoRegionMap", { "Ref": "AWS::Region" }, "QuickStartS3URL" ] },
+								"QSS3BucketName": { "Ref": "QSS3BucketName" },
+								"QSS3KeyPrefix": { "Ref": "QSS3KeyPrefix" }
+				}
+			}
+		},
+		"ConfigRulesTemplate": {
+			"Type": "AWS::CloudFormation::Stack",
+			"Condition": "LoadConfigRulesTemplate",
+			"DependsOn": [ "IamTemplate", "ProductionVpcTemplate", "ManagementVpcTemplate", "LoggingTemplate" ],
+			"Properties": {
+				"TemplateURL": { 
+					"Fn::Join"  : [
+						"",
+						[
+							{ "Fn::FindInMap" : [ "AWSInfoRegionMap", { "Ref": "AWS::Region" }, "QuickStartS3URL" ] }, "/", { "Ref": "QSS3BucketName" }, "/", { "Ref": "QSS3KeyPrefix" }, "configrules.template"
+						]
+					]
+				},
+				"TimeoutInMinutes": "20",
+				"Parameters": {
+								"pRequiredTagKey": { "Fn::FindInMap" : [ "CustomVariables", "vResourceEnvironmentTagValue", "Value" ] }				
+				}
+			}
+		},
+		"ApplicationTemplate": {
+			"Type": "AWS::CloudFormation::Stack",
+			"DependsOn": "ConfigRulesTemplate",
+			"Properties": {
+				"TemplateURL": { 
+					"Fn::Join"  : [
+						"",
+						[
+						{ "Fn::FindInMap" : [ "AWSInfoRegionMap", { "Ref": "AWS::Region" }, "QuickStartS3URL" ] }, "/", { "Ref": "QSS3BucketName" }, "/", { "Ref": "QSS3KeyPrefix" }, "application.template"
+						]
+					]
+				},
+				"TimeoutInMinutes": "30",
+				"Parameters": { 	
+					"pEC2KeyPair": { "Ref": "pEC2KeyPair" },
+					"pProductionCIDR": "10.100.0.0/16",
+					"pProductionVPC": { "Fn::GetAtt" : [ "ProductionVpcTemplate", "Outputs.rVPCProduction" ] }, 
+					"pDMZSubnetA": { "Fn::GetAtt" : [ "ProductionVpcTemplate", "Outputs.rDMZSubnetA" ] }, 
+					"pDMZSubnetB": { "Fn::GetAtt" : [ "ProductionVpcTemplate", "Outputs.rDMZSubnetB" ] }, 
+					"pAppPrivateSubnetA": { "Fn::GetAtt" : [ "ProductionVpcTemplate", "Outputs.rAppPrivateSubnetA" ] }, 
+					"pAppPrivateSubnetB": { "Fn::GetAtt" : [ "ProductionVpcTemplate", "Outputs.rAppPrivateSubnetB" ] }, 
+					"pWebInstanceType": { "Fn::FindInMap" : [ "AWSAMIRegionMap", { "Ref": "AWS::Region" }, "InstanceType" ] },			
+					"pAppInstanceType": { "Fn::FindInMap" : [ "AWSAMIRegionMap", { "Ref": "AWS::Region" }, "InstanceType" ] },
+					"pDBPrivateSubnetA": { "Fn::GetAtt" : [ "ProductionVpcTemplate", "Outputs.rDBPrivateSubnetA" ] }, 
+					"pDBPrivateSubnetB": { "Fn::GetAtt" : [ "ProductionVpcTemplate", "Outputs.rDBPrivateSubnetB" ] },
+					"pManagementCIDR": "10.10.0.0/16",
+					"pRegionAZ1Name": { "Ref": "pAvailabilityZoneA" },
+					"pRegionAZ2Name": { "Ref": "pAvailabilityZoneB" },
+					"pWebServerAMI": { "Fn::FindInMap" : [ "AWSAMIRegionMap", { "Ref": "AWS::Region" }, "AMZNLINUXHVM" ] },
+					"pAppAmi": { "Fn::FindInMap" : [ "AWSAMIRegionMap", { "Ref": "AWS::Region" }, "AMZNLINUXHVM" ] },
+					"pDBUser": "testuserdb",
+					"pDBName": "tdwtestdB",
+					"pDBPassword": { "Ref": "pDBPassword" }, 
+					"pDBClass": { "Fn::FindInMap" : [ "AWSAMIRegionMap", { "Ref": "AWS::Region" }, "InstanceTypeDatabase" ] },	
+					"pDBAllocatedStorage": "20",
+					"pEnvironment": { "Fn::FindInMap" : [ "CustomVariables", "vResourceEnvironmentTagValue", "Value" ] },	
+					"pBastionSSHCIDR": "0.0.0.0/0",
+					"pSupportsGlacier": { "Fn::FindInMap" : [ "RegionServiceSupport", { "Ref": "AWS::Region" }, "Glacier" ] },	
+					"QuickStartS3URL":{ "Fn::FindInMap" : [ "AWSInfoRegionMap", { "Ref": "AWS::Region" }, "QuickStartS3URL" ] },			
+					"QSS3BucketName": { "Ref": "QSS3BucketName" },
+					"QSS3KeyPrefix": { "Ref": "QSS3KeyPrefix" }
+				}
+			}
+		}
+	},
+	"Outputs": {
+		"TemplateType": { "Value": "Standard Multi-Tier Web Application" },
+		"TemplateVersion": { "Value": "2.0" },
+		"BastionIP": { 
+			"Description": "Use this IP via SSH to connect to Bastion Instance",
+			"Value": { "Fn::GetAtt" : [ "ManagementVpcTemplate", "Outputs.rBastionInstanceIP" ]}
+		},
+		"Help": {
+			"Description": "For assistance or questions regarding this quickstart please email compliance-accelerator@amazon.com",
+			"Value": ""
+		},
+		"pProductionVPCattr": {
+			"Description": "testing output of pProductionVPC to see why its not a string compatible type",
+			"Value":  { "Fn::GetAtt" : [ "ProductionVpcTemplate", "Outputs.rVPCProduction" ] }
+		}
+	}
+}

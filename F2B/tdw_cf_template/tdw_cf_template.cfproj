@@ -1,0 +1,63 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <SchemaVersion>2.0</SchemaVersion>
+    <ProjectGuid>{7b632ab1-a195-4523-be3f-678f0ebe6c02}</ProjectGuid>
+    <AssemblyName>tdw_cf_template</AssemblyName>
+    <Name>tdw_cf_template</Name>
+    <RootNamespace>tdw_cf_template</RootNamespace>
+  </PropertyGroup>
+  <PropertyGroup>
+    <!-- Experimental LocalAppData -->
+    <CloudFormationPath Condition=" '$(CloudFormationPath)' == '' AND Exists('$(LocalAppData)\Microsoft\VisualStudio\10.0Exp\Extensions\Amazon Web Services\AWSToolkit.VS2010.Core\0.5.0.0\cloudformation.targets')">$(LocalAppData)\Microsoft\VisualStudio\10.0Exp\Extensions\Amazon Web Services\AWSToolkit.VS2010.Core\0.5.0.0</CloudFormationPath>
+    <!-- Integrated Shell -->
+    <CloudFormationPath Condition=" '$(CloudFormationPath)' == '' AND Exists('$(MSBuildExtensionsPath)\Amazon Web Services LLC\AWSToolkit.VS2010\cloudformation.targets')">$(MSBuildExtensionsPath)\Amazon Web Services LLC\AWSToolkit.VS2010</CloudFormationPath>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)' == 'Release' ">
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="application.template">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="configrules.template">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="iam.template">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="kinesis.template">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="logging.template">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="mainbastion.template">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="mainbastionchangesetone.template">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="natinstance.template">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="subnetchild.template">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="subnetchildproducer.template">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="subnetparent.template">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="vpcmanagement.template">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="vpcproduction.template">
+      <SubType>Code</SubType>
+    </Compile>
+  </ItemGroup>
+  <Import Project="$(CloudFormationPath)\cloudformation.targets" />
+</Project>

@@ -1,0 +1,1275 @@
+{
+    "AWSTemplateFormatVersion" : "2010-09-09",
+    "Description"              : "Enterprise Accelerator - Provides nesting for required stacks to deploy a full sample web application with reverse proxy, ELBs, IAM, and other resources (for demonstration/POC/testing) QS(0018)",
+    "Parameters"               : {
+        "pEC2KeyPair"         : {
+            "Description" : "Key Name for Instance",
+            "Type"        : "String",
+            "Default"     : "tdwprodcfkvp"
+        },
+        "pProductionCIDR"     : {
+            "Description" : "Production VPC CIDR",
+            "Type"        : "String",
+            "Default"     : "10.100.0.0/16"
+        },
+        "pProductionVPC"      : {
+            "Description" : "Production VPC",
+            "Type"        : "AWS::EC2::VPC::Id"
+        },
+        "pDMZSubnetA"         : {
+            "Description" : "DMZ Subnet A",
+            "Type"        : "AWS::EC2::Subnet::Id"
+        },
+        "pDMZSubnetB"         : {
+            "Description" : "DMZ Subnet B",
+            "Type"        : "AWS::EC2::Subnet::Id",
+            "Default"     : "10.10.0.0/16"
+        },
+        "pAppPrivateSubnetA"  : {
+            "Description" : "WebApp Subnet A",
+            "Type"        : "AWS::EC2::Subnet::Id"
+        },
+        "pAppPrivateSubnetB"  : {
+            "Description" : "WebApp Subnet A",
+            "Type"        : "AWS::EC2::Subnet::Id"
+        },
+        "pWebInstanceType"    : {
+            "Description" : "Instance type for the webservers",
+            "Type"        : "String",
+            "Default"     : "m3.medium"
+        },
+        "pAppInstanceType"    : {
+            "Description" : "Instance type for the app webservers",
+            "Type"        : "String",
+            "Default"     : "m3.medium"
+        },
+        "pDBPrivateSubnetA"   : {
+            "Description" : "rDBPrivateSubnetA",
+            "Type"        : "AWS::EC2::Subnet::Id"
+        },
+        "pDBPrivateSubnetB"   : {
+            "Description" : "rDBPrivateSubnetB",
+            "Type"        : "AWS::EC2::Subnet::Id"
+        },
+        "pManagementCIDR"     : {
+            "Description" : "Management VPC CIDR",
+            "Type"        : "String",
+            "Default"     : "10.10.0.0/16"
+        },
+        "pRegionAZ1Name"      : {
+            "Description" : "rDBPrivateSubnetB",
+            "Type"        : "AWS::EC2::AvailabilityZone::Name",
+            "Default"     : "eu-west-1a"
+        },
+        "pRegionAZ2Name"      : {
+            "Description" : "rDBPrivateSubnetB",
+            "Type"        : "AWS::EC2::AvailabilityZone::Name",
+            "Default"     : "eu-west-1b"
+        },
+        "pWebServerAMI"       : {
+            "Description" : "Which webserver AMI do you want to use, default",
+            "Type"        : "String",
+            "Default"     : "none"
+        },
+        "pAppAmi"             : {
+            "Description" : "Which App AMI do you want to use?",
+            "Type"        : "String",
+            "Default"     : "none"
+        },
+        "pDBUser"             : {
+            "Description" : "Username of DB Instance",
+            "Type"        : "String",
+            "Default"     : "testuserdb"
+        },
+        "pDBName"             : {
+            "Description" : "Name of RDS Database",
+            "Type"        : "String",
+            "Default"     : "tdwtestdB"
+        },
+        "pDBPassword"         : {
+            "Description" : "Password of DB Instance",
+            "NoEcho"      : true,
+            "Type"        : "String",
+            "Default"     : "LiverpoolFC123"
+        },
+        "pDBClass"            : {
+            "Description" : "Instance class of RDS instance",
+            "Type"        : "String",
+            "Default"     : "db.m3.medium"
+        },
+        "pDBAllocatedStorage" : {
+            "Description" : "Allocated Storage (in GB) for RDS instance",
+            "Type"        : "String",
+            "Default"     : "10"
+        },
+        "pEnvironment"        : {
+            "Description" : "Environment type (development, test, or production)",
+            "Type"        : "String",
+            "Default"     : "development"
+        },
+        "pBastionSSHCIDR"     : {
+            "Description" : "CIDR block (optional) of Public IPs allowed to access Bastion instance in this deployment",
+            "Type"        : "String",
+            "Default"     : "0.0.0.0/0"
+        },
+        "pSupportsGlacier"    : {
+            "Description" : "Determines whether this region supports Glacier (passed in from main template)",
+            "Type"        : "String",
+            "Default"     : "true"
+        },
+        "QSS3BucketName"      : {
+            "AllowedPattern" : "^[0-9a-zA-Z]+([0-9a-zA-Z-.]*[0-9a-zA-Z])*$",
+            "ConstraintDescription" : "Quick Start bucket name can include numbers, lowercase letters, uppercase letters, periods (.), and hyphens (-). It cannot start or end with a hyphen (-).",
+            "Default"               : "tdw-cft-dev",
+            "Description"           : "S3 bucket name for the Quick Start assets. Quick Start bucket name can include numbers, lowercase letters, uppercase letters, and hyphens (-). It cannot start or end with a hyphen (-).",
+            "Type"                  : "String"
+        },
+        "QSS3KeyPrefix"       : {
+            "AllowedPattern" : "^[0-9a-zA-Z-]+(/[0-9a-zA-Z-]+)*$",
+            "ConstraintDescription" : "Quick Start key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/). It cannot start or end with forward slash (/) because they are automatically appended.",
+            "Default"               : "tdw-cft-dev",
+            "Description"           : "S3 key prefix for the Quick Start assets. Quick Start key prefix can include numbers, lowercase letters, uppercase letters, hyphens (-), and forward slash (/). It cannot start or end with forward slash (/) because they are automatically appended.",
+            "Type"                  : "String"
+        },
+        "QuickStartS3URL"     : {
+            "Description" : "Quick Start S3 URL prefix.",
+            "Default"     : "https://s3.amazonaws.com",
+            "Type"        : "String"
+        }
+    },
+    "Mappings"                 : {
+        "elbMap" : {
+            "eu-west-1" : {
+                "ELB" : "156460612806"
+            },
+            "eu-west-2" : {
+                "ELB" : "652711504416"
+            },
+            "eu-central-1" : {
+                "ELB" : "054676820928"
+            }
+        }
+    },
+    "Conditions"               : {
+        "IsGovCloud" : {
+            "Fn::Equals" : [
+                "us-gov-west-1",
+                {
+                    "Ref" : "AWS::Region"
+                }
+            ]
+        },
+        "SupportsGlacier" : {
+            "Fn::Equals" : [
+                {
+                    "Ref" : "pSupportsGlacier"
+                },
+                true
+            ]
+        }
+    },
+    "Resources": {
+		"rS3ELBAccessLogs": {
+            "Type": "AWS::S3::Bucket",
+            "DeletionPolicy": "Retain",
+            "Properties": {
+                "AccessControl": "Private"
+			}
+        },
+        "rS3AccessLogsPolicy": {
+            "Type": "AWS::S3::BucketPolicy",
+            "DeletionPolicy": "Retain",
+            "Properties": {
+                "Bucket": {
+                    "Ref": "rS3ELBAccessLogs"
+                },
+                "PolicyDocument": {
+                    "Version": "2008-10-17",
+                    "Statement": [
+                        {
+                            "Sid": "ELBAccessLogs20130930",
+                            "Effect": "Allow",
+                            "Resource": {
+                                "Fn::Sub": [
+                                    "arn:${Endpoint}:s3:::${rS3ELBAccessLogs}/Logs/AWSLogs/${AWS::AccountId}/*",
+                                    {
+                                        "Endpoint": {
+                                            "Fn::If": [
+                                                "IsGovCloud",
+                                                "aws-us-gov",
+                                                "aws"
+                                            ]
+                                        }
+                                    }
+                                ]
+                            },
+                            "Principal": {
+                                "AWS": {
+                                    "Fn::FindInMap": [
+                                        "elbMap",
+                                        {
+                                            "Ref": "AWS::Region"
+                                        },
+                                        "ELB"
+                                    ]
+                                }
+                            },
+                            "Action": [
+                                "s3:PutObject"
+                            ]
+                        }
+                    ]
+                }
+            }
+        },
+        "rSecurityGroupWeb": {
+            "Type": "AWS::EC2::SecurityGroup",
+            "Properties": {
+                "GroupDescription": "Security group for Reverse Proxy in DMZ",
+                "VpcId": {
+                    "Ref": "pProductionVPC"
+                },
+                "SecurityGroupIngress": [
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": 443,
+                        "ToPort": 443,
+                        "CidrIp": "0.0.0.0/0"
+                    }
+                ],
+                "SecurityGroupEgress": [
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": 80,
+                        "ToPort": 80,
+                        "CidrIp": "0.0.0.0/0"
+                    },
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": 443,
+                        "ToPort": 443,
+                        "CidrIp": "0.0.0.0/0"
+                    }
+                ],
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": "sg-reverse-proxy-dmz"
+                    },
+                    {
+                        "Key": "Environment",
+                        "Value": {
+                            "Ref": "pEnvironment"
+                        }
+                    }
+                ]
+            }
+        },
+        "rSecurityGroupWebInstance": {
+            "Type": "AWS::EC2::SecurityGroup",
+            "Properties": {
+                "GroupDescription": "Security group for Reverse Proxy Instances in DMZ",
+                "VpcId": {
+                    "Ref": "pProductionVPC"
+                },
+                "SecurityGroupIngress": [
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": 443,
+                        "ToPort": 443,
+                        "CidrIp": {
+                            "Ref": "pProductionCIDR"
+                        }
+                    },
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": 80,
+                        "ToPort": 80,
+                        "CidrIp": {
+                            "Ref": "pProductionCIDR"
+                        }
+                    },
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": 22,
+                        "ToPort": 22,
+                        "CidrIp": {
+                            "Ref": "pManagementCIDR"
+                        }
+                    }
+                ],
+                "SecurityGroupEgress": [
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": 80,
+                        "ToPort": 80,
+                        "CidrIp": "0.0.0.0/0"
+                    },
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": 443,
+                        "ToPort": 443,
+                        "CidrIp": "0.0.0.0/0"
+                    },
+                    {
+                        "IpProtocol": "udp",
+                        "FromPort": 123,
+                        "ToPort": 123,
+                        "CidrIp": {
+                            "Ref": "pProductionCIDR"
+                        }
+                    }
+                ],
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": "sg-reverse-proxy-dmz-instances"
+                    },
+                    {
+                        "Key": "Environment",
+                        "Value": {
+                            "Ref": "pEnvironment"
+                        }
+                    }
+                ]
+            }
+        },
+        "rSecurityGroupApp": {
+            "Type": "AWS::EC2::SecurityGroup",
+            "Properties": {
+                "GroupDescription": "Security group for Appservers ELB",
+                "VpcId": {
+                    "Ref": "pProductionVPC"
+                },
+                "SecurityGroupIngress": [
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": 443,
+                        "ToPort": 443,
+                        "CidrIp": {
+                            "Ref": "pProductionCIDR"
+                        }
+                    }
+                ],
+                "SecurityGroupEgress": [
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": 443,
+                        "ToPort": 443,
+                        "CidrIp": "0.0.0.0/0"
+                    },
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": 80,
+                        "ToPort": 80,
+                        "CidrIp": "0.0.0.0/0"
+                    }
+                ],
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": "sg-app-server-elb"
+                    },
+                    {
+                        "Key": "Environment",
+                        "Value": {
+                            "Ref": "pEnvironment"
+                        }
+                    }
+                ]
+            }
+        },
+        "rSecurityGroupAppInstance": {
+            "Type": "AWS::EC2::SecurityGroup",
+            "Properties": {
+                "GroupDescription": "Security group for Appserver Instances",
+                "VpcId": {
+                    "Ref": "pProductionVPC"
+                },
+                "SecurityGroupIngress": [
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": 443,
+                        "ToPort": 443,
+                        "CidrIp": {
+                            "Ref": "pProductionCIDR"
+                        }
+                    },
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": 80,
+                        "ToPort": 80,
+                        "CidrIp": {
+                            "Ref": "pProductionCIDR"
+                        }
+                    },
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": 22,
+                        "ToPort": 22,
+                        "CidrIp": {
+                            "Ref": "pManagementCIDR"
+                        }
+                    }
+                ],
+                "SecurityGroupEgress": [
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": 80,
+                        "ToPort": 80,
+                        "CidrIp": "0.0.0.0/0"
+                    },
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": 443,
+                        "ToPort": 443,
+                        "CidrIp": "0.0.0.0/0"
+                    },
+                    {
+                        "IpProtocol": "udp",
+                        "FromPort": 123,
+                        "ToPort": 123,
+                        "CidrIp": {
+                            "Ref": "pProductionCIDR"
+                        }
+                    },
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": 3306,
+                        "ToPort": 3306,
+                        "CidrIp": {
+                            "Ref": "pProductionCIDR"
+                        }
+                    }
+                ],
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": "sg-app-server-elb-instances"
+                    },
+                    {
+                        "Key": "Environment",
+                        "Value": {
+                            "Ref": "pEnvironment"
+                        }
+                    }
+                ]
+            }
+        },
+        "rSecurityGroupRDS": {
+            "Type": "AWS::EC2::SecurityGroup",
+            "Properties": {
+                "GroupDescription": "Port 3306 database for access",
+                "VpcId": {
+                    "Ref": "pProductionVPC"
+                },
+                "SecurityGroupIngress": [
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": 3306,
+                        "ToPort": 3306,
+                        "SourceSecurityGroupId": {
+                            "Ref": "rSecurityGroupAppInstance"
+                        }
+                    }
+                ],
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": "sg-database-access"
+                    },
+                    {
+                        "Key": "Environment",
+                        "Value": {
+                            "Ref": "pEnvironment"
+                        }
+                    }
+                ]
+            }
+        },
+        "rWebContentBucket": {
+            "Type": "AWS::S3::Bucket",
+            "Properties": {
+                "AccessControl": "Private",
+                "LifecycleConfiguration": {
+                    "Rules": [
+                        {
+                            "Id": "Transition90daysRetain7yrs",
+                            "Status": "Enabled",
+                            "ExpirationInDays": 2555,
+                            "Transition": {
+                                "TransitionInDays": 90,
+                                "StorageClass": {
+                                    "Fn::If": [
+                                        "SupportsGlacier",
+                                        "GLACIER",
+                                        "STANDARD_IA"
+                                    ]
+                                }
+                            }
+                        }
+                    ]
+                },
+                "VersioningConfiguration": {
+                    "Status": "Enabled"
+                }
+            },
+            "DeletionPolicy": "Delete"
+        },
+        "rWebContentS3Policy": {
+            "Type": "AWS::S3::BucketPolicy",
+            "DependsOn": "rWebContentBucket",
+            "Properties": {
+                "Bucket": {
+                    "Ref": "rWebContentBucket"
+                },
+                "PolicyDocument": {
+                    "Statement": [
+                        {
+                            "Sid": "EnforceSecureTransport",
+                            "Action": "s3:*",
+                            "Effect": "Deny",
+                            "Principal": "*",
+                            "Resource": {
+                                "Fn::Sub": [
+                                    "arn:${Endpoint}:s3:::${rWebContentBucket}",
+                                    {
+                                        "Endpoint": {
+                                            "Fn::If": [
+                                                "IsGovCloud",
+                                                "aws-us-gov",
+                                                "aws"
+                                            ]
+                                        }
+                                    }
+                                ]
+                            },
+                            "Condition": {
+                                "Bool": {
+                                    "aws:SecureTransport": "false"
+                                }
+                            }
+                        },
+                        {
+                            "Sid": "EnforceEncryptionOnPut",
+                            "Effect": "Deny",
+                            "Principal": "*",
+                            "Action": "s3:PutObject",
+                            "Resource": {
+                                "Fn::Sub": [
+                                    "arn:${Endpoint}:s3:::${rWebContentBucket}/*",
+                                    {
+                                        "Endpoint": {
+                                            "Fn::If": [
+                                                "IsGovCloud",
+                                                "aws-us-gov",
+                                                "aws"
+                                            ]
+                                        }
+                                    }
+                                ]
+                            },
+                            "Condition": {
+                                "StringNotEquals": {
+                                    "s3:x-amz-server-side-encryption": "AES256"
+                                }
+                            }
+                        }
+                    ]
+                }
+            }
+        },
+        "rDBSubnetGroup": {
+            "Type": "AWS::RDS::DBSubnetGroup",
+            "Properties": {
+                "DBSubnetGroupDescription": "MySQL RDS Subnet Group",
+                "SubnetIds": [
+                    {
+                        "Ref": "pDBPrivateSubnetA"
+                    },
+                    {
+                        "Ref": "pDBPrivateSubnetB"
+                    }
+                ]
+            }
+        },
+        "rRDSInstanceMySQL": {
+            "Type": "AWS::RDS::DBInstance",
+            "DependsOn": [
+                "rDBSubnetGroup",
+                "rSecurityGroupRDS"
+            ],
+            "Properties": {
+                "DBName": {
+                    "Ref": "pDBName"
+                },
+                "Engine": "MySQL",
+                "MultiAZ": true,
+                "StorageEncrypted": true,
+                "MasterUsername": {
+                    "Ref": "pDBUser"
+                },
+                "MasterUserPassword": {
+                    "Ref": "pDBPassword"
+                },
+                "DBInstanceClass": {
+                    "Ref": "pDBClass"
+                },
+                "AllocatedStorage": {
+                    "Ref": "pDBAllocatedStorage"
+                },
+                "VPCSecurityGroups": [
+                    {
+                        "Ref": "rSecurityGroupRDS"
+                    }
+                ],
+                "DBSubnetGroupName": {
+                    "Ref": "rDBSubnetGroup"
+                }
+            }
+        },
+        "rELBApp": {
+            "Type": "AWS::ElasticLoadBalancing::LoadBalancer",
+            "DependsOn": [
+                "rS3ELBAccessLogs",
+                "rSecurityGroupApp",
+                "rS3AccessLogsPolicy"
+            ],
+            "Properties": {
+                "Subnets": [
+                    {
+                        "Ref": "pAppPrivateSubnetA"
+                    },
+                    {
+                        "Ref": "pAppPrivateSubnetB"
+                    }
+                ],
+                "HealthCheck": {
+                    "HealthyThreshold": 2,
+                    "Interval": 15,
+                    "Target": "TCP:80",
+                    "Timeout": 5,
+                    "UnhealthyThreshold": 3
+                },
+                "AccessLoggingPolicy": {
+                    "S3BucketName": {
+                        "Ref": "rS3ELBAccessLogs"
+                    },
+                    "S3BucketPrefix": "Logs",
+                    "Enabled": true,
+                    "EmitInterval": 60
+                },
+                "SecurityGroups": [
+                    {
+                        "Ref": "rSecurityGroupApp"
+                    }
+                ],
+                "Listeners": [
+                    {
+                        "InstancePort": 80,
+                        "LoadBalancerPort": 80,
+                        "Protocol": "HTTP",
+                        "InstanceProtocol": "HTTP"
+                    }
+                ],
+                "Scheme": "internal",
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": "ProxyELB"
+                    },
+                    {
+                        "Key": "Environment",
+                        "Value": {
+                            "Ref": "pEnvironment"
+                        }
+                    }
+                ]
+            }
+        },
+        "rELBWeb": {
+            "Type": "AWS::ElasticLoadBalancing::LoadBalancer",
+            "DependsOn": [
+                "rS3ELBAccessLogs",
+                "rSecurityGroupWeb",
+                "rS3AccessLogsPolicy"
+            ],
+            "Properties": {
+                "Subnets": [
+                    {
+                        "Ref": "pDMZSubnetA"
+                    },
+                    {
+                        "Ref": "pDMZSubnetB"
+                    }
+                ],
+                "HealthCheck": {
+                    "HealthyThreshold": 2,
+                    "Interval": 30,
+                    "Target": "TCP:80",
+                    "Timeout": 5,
+                    "UnhealthyThreshold": 5
+                },
+                "AccessLoggingPolicy": {
+                    "S3BucketName": {
+                        "Ref": "rS3ELBAccessLogs"
+                    },
+                    "S3BucketPrefix": "Logs",
+                    "Enabled": true,
+                    "EmitInterval": 60
+                },
+                "SecurityGroups": [
+                    {
+                        "Ref": "rSecurityGroupWeb"
+                    }
+                ],
+                "Listeners": [
+                    {
+                        "InstancePort": 80,
+                        "LoadBalancerPort": 80,
+                        "Protocol": "HTTP",
+                        "InstanceProtocol": "HTTP"
+                    }
+                ],
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": "Proxy ELB"
+                    },
+                    {
+                        "Key": "Environment",
+                        "Value": {
+                            "Ref": "pEnvironment"
+                        }
+                    }
+                ]
+            }
+        },
+        "rAutoScalingConfigWeb": {
+            "Type": "AWS::AutoScaling::LaunchConfiguration",
+            "DependsOn": [
+                "rELBApp",
+                "rAutoScalingGroupApp"
+            ],
+            "Metadata": {
+                "AWS::CloudFormation::Init": {
+                    "config": {
+                        "packages": {
+                            "yum": {
+                                "nginx": [],
+                                "java-1.6.0-openjdk-devel": [],
+                                "git": []
+                            }
+                        },
+                        "files": {
+                            "/tmp/nginx/default.conf": {
+                                "content": {
+                                    "Fn::Sub": "server {\n  listen 80;\n  charset utf-8;\n  location / {\n    resolver xxxxx;\n    set $elb 'https://${rELBApp.DNSName}';\n    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n    proxy_set_header Host $http_host;\n    proxy_redirect off;\n    proxy_pass $elb;\n  }\n}\n"
+                                },
+                                "mode": "000755",
+                                "owner": "root",
+                                "group": "root"
+                            }
+                        },
+                        "commands": {
+                            "01-nginx-setup": {
+                                "command": "#!/bin/bash\n## Nginx setup\nsleep 5\necho 'Replace resolver placeholder with /etc/resolv.conf nameservers'\nsed -i \"s/xxxxx/$(grep ^nameserver /etc/resolv.conf | sed 's/^nameserver//' | tr -d '\\n')/\" /tmp/nginx/default.conf\ncp /tmp/nginx/default.conf /etc/nginx/conf.d/default.conf\nservice nginx stop\nsed -i '/default_server;/d' /etc/nginx/nginx.conf\nsleep 10\nservice nginx restart\n"
+                            }
+                        },
+                        "services": {
+                            "sysvinit": {
+                                "nginx": {
+                                    "enabled": true,
+                                    "ensureRunning": true,
+                                    "files": [
+                                        "/etc/nginx/conf.d/default.conf"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "Properties": {
+                "AssociatePublicIpAddress": true,
+                "ImageId": {
+                    "Ref": "pWebServerAMI"
+                },
+                "InstanceType": {
+                    "Ref": "pWebInstanceType"
+                },
+                "KeyName": {
+                    "Ref": "pEC2KeyPair"
+                },
+                "SecurityGroups": [
+                    {
+                        "Ref": "rSecurityGroupWebInstance"
+                    }
+                ],
+                "UserData": {
+                    "Fn::Base64": {
+                        "Fn::Sub": "#!/bin/bash\nyum update -y\n/opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource rAutoScalingConfigWeb --region ${AWS::Region}\n\n## Nginx setup\nsleep 5\ncp /tmp/nginx/default.conf /etc/nginx/conf.d/default.conf\nservice nginx stop\nsed -i '/default_server;/d' /etc/nginx/nginx.conf\nsleep 10\nservice nginx restart\n"
+                    }
+                }
+            }
+        },
+        "rAutoScalingGroupWeb": {
+            "Type": "AWS::AutoScaling::AutoScalingGroup",
+            "DependsOn": "rAutoScalingConfigWeb",
+            "Properties": {
+                "AvailabilityZones": [
+                    {
+                        "Ref": "pRegionAZ1Name"
+                    },
+                    {
+                        "Ref": "pRegionAZ2Name"
+                    }
+                ],
+                "VPCZoneIdentifier": [
+                    {
+                        "Ref": "pDMZSubnetA"
+                    },
+                    {
+                        "Ref": "pDMZSubnetB"
+                    }
+                ],
+                "LaunchConfigurationName": {
+                    "Ref": "rAutoScalingConfigWeb"
+                },
+                "MinSize": 2,
+                "MaxSize": 4,
+                "LoadBalancerNames": [
+                    {
+                        "Ref": "rELBWeb"
+                    }
+                ],
+                "HealthCheckType": "ELB",
+                "HealthCheckGracePeriod": 300,
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": "Proxy Server",
+                        "PropagateAtLaunch": true
+                    },
+                    {
+                        "Key": "Environment",
+                        "Value": {
+                            "Ref": "pEnvironment"
+                        },
+                        "PropagateAtLaunch": true
+                    }
+                ]
+            }
+        },
+        "rAutoScalingUpWeb": {
+            "Type": "AWS::AutoScaling::ScalingPolicy",
+            "Properties": {
+                "AdjustmentType": "ChangeInCapacity",
+                "AutoScalingGroupName": {
+                    "Ref": "rAutoScalingGroupWeb"
+                },
+                "Cooldown": 500,
+                "ScalingAdjustment": 1
+            }
+        },
+        "rAutoScalingDownWeb": {
+            "Type": "AWS::AutoScaling::ScalingPolicy",
+            "Properties": {
+                "AdjustmentType": "ChangeInCapacity",
+                "AutoScalingGroupName": {
+                    "Ref": "rAutoScalingGroupWeb"
+                },
+                "Cooldown": 500,
+                "ScalingAdjustment": -1
+            }
+        },
+        "rCWAlarmHighCPUWeb": {
+            "Type": "AWS::CloudWatch::Alarm",
+            "Properties": {
+                "EvaluationPeriods": 1,
+                "Statistic": "Average",
+                "Threshold": 50,
+                "AlarmDescription": "Alarm if CPU too high or metric disappears indicating instance is down",
+                "Period": 60,
+                "AlarmActions": [
+                    {
+                        "Ref": "rAutoScalingUpWeb"
+                    }
+                ],
+                "Namespace": "AWS/EC2",
+                "Dimensions": [
+                    {
+                        "Name": "AutoScalingGroupName",
+                        "Value": {
+                            "Ref": "rAutoScalingGroupWeb"
+                        }
+                    }
+                ],
+                "ComparisonOperator": "GreaterThanThreshold",
+                "MetricName": "WebServerCpuHighUtilization"
+            }
+        },
+        "rCWAlarmLowCPUWeb": {
+            "Type": "AWS::CloudWatch::Alarm",
+            "DependsOn": "rAutoScalingGroupWeb",
+            "Properties": {
+                "EvaluationPeriods": 1,
+                "Statistic": "Average",
+                "Threshold": 10,
+                "AlarmDescription": "Alarm if CPU too low, remove a web server",
+                "Period": 60,
+                "AlarmActions": [
+                    {
+                        "Ref": "rAutoScalingDownWeb"
+                    }
+                ],
+                "Namespace": "AWS/EC2",
+                "Dimensions": [
+                    {
+                        "Name": "AutoScalingGroupName",
+                        "Value": {
+                            "Ref": "rAutoScalingGroupWeb"
+                        }
+                    }
+                ],
+                "ComparisonOperator": "LessThanThreshold",
+                "MetricName": "WebServerCpuLowUtilization"
+            }
+        },
+        "rAutoScalingConfigApp": {
+            "Type": "AWS::AutoScaling::LaunchConfiguration",
+            "DependsOn": [
+                "rRDSInstanceMySQL"
+            ],
+            "Metadata": {
+                "AWS::CloudFormation::Init": {
+                    "configSets": {
+                        "wordpress_install": [
+                            "install_cfn",
+                            "install_wordpress"
+                        ]
+                    },
+                    "install_cfn": {
+                        "files": {
+                            "/etc/cfn/cfn-hup.conf": {
+                                "content": {
+                                    "Fn::Sub": "[main]\nstack=${AWS::StackId}\nregion=${AWS::Region}\n"
+                                },
+                                "mode": "000400",
+                                "owner": "root",
+                                "group": "root"
+                            },
+                            "/etc/cfn/hooks.d/cfn-auto-reloader.conf": {
+                                "content": {
+                                    "Fn::Sub": "[cfn-auto-reloader-hook]\ntriggers=post.update\npath=Resources.rAutoScalingConfigApp.Metadata.AWS::CloudFormation::Init\naction=/opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource rAutoScalingGroupApp --configsets wordpress_install --region ${AWS::Region}\n"
+                                },
+                                "mode": "000400",
+                                "owner": "root",
+                                "group": "root"
+                            }
+                        },
+                        "services": {
+                            "sysvinit": {
+                                "cfn-hup": {
+                                    "enabled": true,
+                                    "ensureRunning": true,
+                                    "files": [
+                                        "/etc/cfn/cfn-hup.conf",
+                                        "/etc/cfn/hooks.d/cfn-auto-reloader.conf"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "install_wordpress": {
+                        "packages": {
+                            "yum": {
+                                "php": [],
+                                "php-mysql": [],
+                                "mysql": [],
+                                "httpd": []
+                            }
+                        },
+                        "sources": {
+                            "/var/www/html": "https://wordpress.org/latest.tar.gz"
+                        },
+                        "files": {
+                            "/var/www/html/wordpress/wp-config.php": {
+                                "content": {
+                                    "Fn::Sub": "<?php\ndefine('DB_NAME', '${pDBName}');\ndefine('DB_USER', '${pDBUser}');\ndefine('DB_PASSWORD', '${pDBPassword}');\ndefine('DB_HOST', '${rRDSInstanceMySQL.Endpoint.Address}');\ndefine('FORCE_SSL_ADMIN', true);\nif (strpos($_SERVER['HTTP_X_FORWARDED_PROTO'], 'https') !== false) { $_SERVER['HTTPS']='on'; }\ndefine('DB_CHARSET', 'utf8');\ndefine('DB_COLLATE', '');\n\n$table_prefix  = 'wp_';\ndefine('WP_DEBUG', false);\n\nif ( !defined('ABSPATH') )\n  define('ABSPATH', dirname(__FILE__) . '/');\n\nrequire_once(ABSPATH . 'wp-settings.php');\n"
+                                },
+                                "mode": "000644",
+                                "owner": "root",
+                                "group": "root"
+                            }
+                        },
+                        "services": {
+                            "sysvinit": {
+                                "httpd": {
+                                    "enabled": true,
+                                    "ensureRunning": true
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "Properties": {
+                "ImageId": {
+                    "Ref": "pAppAmi"
+                },
+                "InstanceType": {
+                    "Ref": "pAppInstanceType"
+                },
+                "KeyName": {
+                    "Ref": "pEC2KeyPair"
+                },
+                "SecurityGroups": [
+                    {
+                        "Ref": "rSecurityGroupAppInstance"
+                    }
+                ],
+                "UserData": {
+                    "Fn::Base64": {
+                        "Fn::Sub": "#!/bin/bash -x\n\nyum update -y\n/opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource rAutoScalingConfigApp --configsets wordpress_install --region ${AWS::Region}\n\n######################################################################\n#     NOTE: UPDATE THESE VALUES ACCORDING TO THE COMPLIANCE BODY     #\n######################################################################\nLANDING_PAGE=\"/var/www/html/landing.html\"\nCOMPLIANCE_BODY_LABEL=\"PCI DSS\"\nCOMPLIANCE_SURVEY_LINK=\"pci\"\nCOMPLIANCE_MATRIX_FILENAME=\"PCI-DSS3.2-Security-Controls-Mapping.xlsx\"\n######################################################################\n\n# Download the landing page.\nsudo wget ${QuickStartS3URL}/${QSS3BucketName}/${QSS3KeyPrefix}/assets/landing/landing.html -O $LANDING_PAGE\n\n# Replace relative image links with links to the production S3 source.\nsudo sed -i 's|images|${QuickStartS3URL}/${QSS3BucketName}/${QSS3KeyPrefix}/assets/landing/images|g' $LANDING_PAGE\n\n# Inject the landing page branding label.\nsudo sed -i \"s|{compliance-body}|$COMPLIANCE_BODY_LABEL|g\" $LANDING_PAGE\n\n# Inject the survey link parameter.\nsudo sed -i \"s|{compliance-body-survey-link}|$COMPLIANCE_SURVEY_LINK|g\" $LANDING_PAGE\n\n# Inject the security control matrix file location.\nsudo sed -i \"s|{compliance-body-matrix}|${QuickStartS3URL}/${QSS3BucketName}/${QSS3KeyPrefix}/assets/$COMPLIANCE_MATRIX_FILENAME|g\" $LANDING_PAGE\n"
+                    }
+                }
+            }
+        },
+        "rAutoScalingGroupApp": {
+            "Type": "AWS::AutoScaling::AutoScalingGroup",
+            "DependsOn": "rAutoScalingConfigApp",
+            "Properties": {
+                "AvailabilityZones": [
+                    {
+                        "Ref": "pRegionAZ1Name"
+                    },
+                    {
+                        "Ref": "pRegionAZ2Name"
+                    }
+                ],
+                "VPCZoneIdentifier": [
+                    {
+                        "Ref": "pAppPrivateSubnetA"
+                    },
+                    {
+                        "Ref": "pAppPrivateSubnetB"
+                    }
+                ],
+                "LaunchConfigurationName": {
+                    "Ref": "rAutoScalingConfigApp"
+                },
+                "MinSize": 2,
+                "MaxSize": 4,
+                "LoadBalancerNames": [
+                    {
+                        "Ref": "rELBApp"
+                    }
+                ],
+                "HealthCheckType": "ELB",
+                "HealthCheckGracePeriod": 300,
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": "AppServer",
+                        "PropagateAtLaunch": true
+                    },
+                    {
+                        "Key": "Environment",
+                        "Value": {
+                            "Ref": "pEnvironment"
+                        },
+                        "PropagateAtLaunch": true
+                    }
+                ]
+            }
+        },
+        "rAutoScalingDownApp": {
+            "Type": "AWS::AutoScaling::ScalingPolicy",
+            "Properties": {
+                "AdjustmentType": "ChangeInCapacity",
+                "AutoScalingGroupName": {
+                    "Ref": "rAutoScalingGroupApp"
+                },
+                "Cooldown": 1,
+                "ScalingAdjustment": 1
+            }
+        },
+        "rAutoScalingUpApp": {
+            "Type": "AWS::AutoScaling::ScalingPolicy",
+            "Properties": {
+                "AdjustmentType": "ChangeInCapacity",
+                "AutoScalingGroupName": {
+                    "Ref": "rAutoScalingGroupApp"
+                },
+                "Cooldown": 1,
+                "ScalingAdjustment": -1
+            }
+        },
+        "rCWAlarmHighCPUApp": {
+            "Type": "AWS::CloudWatch::Alarm",
+            "Properties": {
+                "EvaluationPeriods": 1,
+                "Statistic": "Average",
+                "Threshold": 50,
+                "AlarmDescription": "Alarm if CPU too high or metric disappears indicating instance is down",
+                "Period": 60,
+                "AlarmActions": [
+                    {
+                        "Ref": "rAutoScalingDownApp"
+                    }
+                ],
+                "Namespace": "AWS/EC2",
+                "Dimensions": [
+                    {
+                        "Name": "AutoScalingGroupName",
+                        "Value": {
+                            "Ref": "rAutoScalingGroupApp"
+                        }
+                    }
+                ],
+                "ComparisonOperator": "GreaterThanThreshold",
+                "MetricName": "AppServerCpuHighUtilization"
+            }
+        },
+        "rCWAlarmLowCPUApp": {
+            "Type": "AWS::CloudWatch::Alarm",
+            "Properties": {
+                "EvaluationPeriods": 1,
+                "Statistic": "Average",
+                "Threshold": 10,
+                "AlarmDescription": "Alarm if CPU too low, remove an app server",
+                "Period": 60,
+                "AlarmActions": [
+                    {
+                        "Ref": "rAutoScalingUpApp"
+                    }
+                ],
+                "Namespace": "AWS/EC2",
+                "Dimensions": [
+                    {
+                        "Name": "AutoScalingGroupName",
+                        "Value": {
+                            "Ref": "rAutoScalingGroupApp"
+                        }
+                    }
+                ],
+                "ComparisonOperator": "LessThanThreshold",
+                "MetricName": "AppServerCpuLowUtilization"
+            }
+        },
+        "rPostProcInstanceRole": {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+                "AssumeRolePolicyDocument": {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Principal": {
+                                "Service": [
+                                    "ec2.amazonaws.com"
+                                ]
+                            },
+                            "Action": [
+                                "sts:AssumeRole"
+                            ]
+                        }
+                    ]
+                },
+                "Path": "/",
+                "Policies": [
+                    {
+                        "PolicyName": "PostProcPermissions",
+                        "PolicyDocument": {
+                            "Version": "2012-10-17",
+                            "Statement": [
+                                {
+                                    "Sid": "UploadServerCertificate",
+                                    "Effect": "Allow",
+                                    "Action": [
+                                        "iam:ListServerCertificates",
+                                        "iam:UploadServerCertificate"
+                                    ],
+                                    "Resource": [
+                                        "*"
+                                    ]
+                                },
+                                {
+                                    "Sid": "CreateLoadBalancerListener",
+                                    "Effect": "Allow",
+                                    "Action": [
+                                        "elasticloadbalancing:CreateLoadBalancerListeners"
+                                    ],
+                                    "Resource": [
+                                        "*"
+                                    ]
+                                },
+                                {
+                                    "Sid": "SelfDestruct",
+                                    "Effect": "Allow",
+                                    "Action": [
+                                        "ec2:TerminateInstances"
+                                    ],
+                                    "Resource": [
+                                        "*"
+                                    ]
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+        },
+        "rPostProcInstanceProfile": {
+            "Type": "AWS::IAM::InstanceProfile",
+            "Properties": {
+                "Path": "/",
+                "Roles": [
+                    {
+                        "Ref": "rPostProcInstanceRole"
+                    }
+                ]
+            }
+        },
+        "rPostProcInstance": {
+            "Type": "AWS::EC2::Instance",
+            "DependsOn": [
+                "rAutoScalingGroupApp",
+                "rAutoScalingGroupWeb"
+            ],
+            "Properties": {
+                "ImageId": {
+                    "Ref": "pWebServerAMI"
+                },
+                "InstanceType": {
+                    "Ref": "pAppInstanceType"
+                },
+                "IamInstanceProfile": {
+                    "Ref": "rPostProcInstanceProfile"
+                },
+                "SubnetId": {
+                    "Ref": "pAppPrivateSubnetA"
+                },
+                "SecurityGroupIds": [
+                    {
+                        "Ref": "rSecurityGroupAppInstance"
+                    }
+                ],
+                "UserData": {
+                    "Fn::Base64": {
+                        "Fn::Sub": "#!/bin/bash -xe\n\necho Configure the region, necessary especially for GovCloud\naws configure set region ${AWS::Region}\n\necho Determine whether a certificate needs to be generated\ncert_arn=$(aws iam list-server-certificates --query 'ServerCertificateMetadataList[?ServerCertificateName==`non-production-testing-server-cert`].Arn' --output text)\nif [[ $(echo \"$cert_arn\" | grep \"non-production-testing-server-cert\") != *\"non-production-testing-server-cert\"* ]]; then\necho *** Beginnning ELB HTTPS configuration ***\necho Generating private key...\nsudo openssl genrsa -out /tmp/my-private-key.pem 2048\necho Creating CSR\nsudo openssl req -sha256 -new -key /tmp/my-private-key.pem -out /tmp/csr.pem -subj \"/C=US/ST=Washington/L=Seattle/O=NonProductionTestCert/CN=NonProductionTestCert\"\necho Self-signing certificate...\nsudo openssl x509 -req -days 365 -in /tmp/csr.pem -signkey /tmp/my-private-key.pem -out /tmp/my-certificate.pem\nsudo openssl rsa -in /tmp/my-private-key.pem -outform PEM\necho Converting private key...\nsudo openssl x509 -inform PEM -in /tmp/my-certificate.pem\necho Uploading key to AWS IAM and saving ARN to environment variable...\ncert_arn=$(aws iam upload-server-certificate --server-certificate-name non-production-testing-server-cert --query 'ServerCertificateMetadata.Arn' --output text --certificate-body file:///tmp/my-certificate.pem --private-key file:///tmp/my-private-key.pem)\necho Sleeping so IAM can propogate the certificate...\nsleep 10\necho Removing key files...\nsudo rm /tmp/*.pem\nfi\necho Creating ELB HTTPS listener using the cert stored in the environment variable...\naws elb create-load-balancer-listeners --load-balancer-name ${rELBWeb} --listeners \"Protocol=HTTPS,LoadBalancerPort=443,InstanceProtocol=HTTP,InstancePort=80,SSLCertificateId=$cert_arn\" --region ${AWS::Region}\naws elb create-load-balancer-listeners --load-balancer-name ${rELBApp} --listeners \"Protocol=HTTPS,LoadBalancerPort=443,InstanceProtocol=HTTP,InstancePort=80,SSLCertificateId=$cert_arn\" --region ${AWS::Region}\necho Send notification message...\naws sns publish --topic-arn aws:sns:eu-west-1:009837347446:tdwcftdevmainbastion-LoggingTemplate-1E3KD8XDHOSTY-rSecurityAlarmTopic-1TNN0GI7819UM \\\n  --subject \"CloudFormation successfully launched ${AWS::StackName}\" \\\n  --message \"What now? Click here for more information: https://${rELBWeb.DNSName}/landing.html. Please note that the application server might be finishing up its initialization. If the link doesn't respond right away, please try it again in few minutes. This page resides on an application server in your new environment.\" \\\n  --region ${AWS::Region}\n\necho Sleeping for 2 minutes to allow CloudFormation to catch up\nsleep 120\n\necho Self-destruct!\naws ec2 terminate-instances --instance-id $(curl -s http://169.254.169.254/latest/meta-data/instance-id) --region ${AWS::Region}\necho *** ELB HTTPS configuration complete ***\n"
+                    }
+                },
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": "PostProcessor"
+                    }
+                ]
+            }
+        }
+    },
+    "Outputs": {
+    }
+}

@@ -1,0 +1,1 @@
+C:\Bitbucket\Analytics\MetaDataStore\F2B\F2B\CloudFormation\dev\main-bastion.template
